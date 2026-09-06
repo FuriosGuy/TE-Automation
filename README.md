@@ -18,7 +18,7 @@ Keep API keys out of JSON files, `.env`, commits, and workflow output.
 - `DEV Version` syncs `config.github-dev.json` hourly.
 - `Main Reward Notifications` scans ready reward state hourly and sends at most one notification per offline user per run.
 
-Both workflows support manual runs from the GitHub Actions tab.
+All workflows support manual runs from the GitHub Actions tab.
 
 ## Local run
 
