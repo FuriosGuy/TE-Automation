@@ -1,0 +1,35 @@
+name: Main Reward Notifications
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roblox-reward-notifications-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Send ready reward notifications
+        shell: pwsh
+        env:
+          ROBLOX_NOTIFICATION_MAIN_API_KEY: ${{ secrets.ROBLOX_NOTIFICATION_MAIN_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:ROBLOX_NOTIFICATION_MAIN_API_KEY)) {
+            throw "Missing GitHub Actions secret ROBLOX_NOTIFICATION_MAIN_API_KEY."
+          }
+
+          ./tools/RobloxNotificationSync/Sync-RewardNotifications.ps1 `
+            -ConfigPath ./tools/RobloxNotificationSync/config.github-main.json `
+            -ApiKeyEnvironmentVariable ROBLOX_NOTIFICATION_MAIN_API_KEY `
+            -Apply

@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "universeId": "9824719186",
+  "playerDataStore": "PlayerStats_v1",
+  "playerKeyPrefix": "player_",
+  "groupId": "13706307",
+  "maxPageSize": 100,
+  "maxPages": 25,
+  "maxUsersPerRun": 500,
+  "maxNotificationsPerRun": 250,
+  "requestDelayMilliseconds": 250,
+  "presenceBatchSize": 50,
+  "notifyOnlyOfflinePlayers": true,
+  "messageIds": {
+    "DailyRewardReady": "87f29950-6a58-f344-b2c3-aa40304b9db3",
+    "SpinWheelReady": "21b959a7-1739-664c-b901-83461d6dbe3f",
+    "GroupRewardReady": "63eeae6c-1497-4a41-8716-c9ef1e470670"
+  },
+  "categories": {
+    "DailyRewardReady": "DailyReward",
+    "SpinWheelReady": "SpinWheel",
+    "GroupRewardReady": "GroupReward"
+  }
+}
