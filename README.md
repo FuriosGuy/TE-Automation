@@ -8,7 +8,7 @@ Add these repository secrets:
 
 - `ROBLOX_EVENT_MAIN_API_KEY` for the main workflow
 - `ROBLOX_EVENT_API_KEY` for the DEV workflow
-- `ROBLOX_NOTIFICATION_MAIN_API_KEY` for hourly main reward notifications
+- `ROBLOX_NOTIFICATION_MAIN_API_KEY` for main reward notifications every 30 minutes
 
 Keep API keys out of JSON files, `.env`, commits, and workflow output.
 
@@ -16,7 +16,7 @@ Keep API keys out of JSON files, `.env`, commits, and workflow output.
 
 - `Main Version` syncs `config.github-main.json` hourly.
 - `DEV Version` syncs `config.github-dev.json` hourly.
-- `Main Reward Notifications` scans ready reward state hourly and sends at most one notification per offline user per run.
+- `Main Reward Notifications` scans ready reward state every 30 minutes and sends at most one notification per offline user per run.
 
 All workflows support manual runs from the GitHub Actions tab.
 
