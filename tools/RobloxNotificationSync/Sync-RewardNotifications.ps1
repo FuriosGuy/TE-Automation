@@ -159,6 +159,80 @@ function Get-StatusCodeFromException {
     return 0
 }
 
+function Get-HttpErrorBody {
+    param([object]$ErrorRecord)
+
+    $errorDetails = Get-PropertyValue $ErrorRecord "ErrorDetails"
+    $errorDetailsMessage = if ($null -ne $errorDetails) {
+        Get-PropertyValue $errorDetails "Message"
+    } else {
+        $null
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$errorDetailsMessage)) {
+        return [string]$errorDetailsMessage
+    }
+
+    $exception = Get-PropertyValue $ErrorRecord "Exception"
+    $response = Get-PropertyValue $exception "Response"
+    if ($null -eq $response) {
+        return $null
+    }
+
+    $content = Get-PropertyValue $response "Content"
+    if ($null -ne $content) {
+        try {
+            $readAsStringAsync = $content.GetType().GetMethod("ReadAsStringAsync", [Type]::EmptyTypes)
+            if ($null -ne $readAsStringAsync) {
+                $task = $readAsStringAsync.Invoke($content, $null)
+                $body = $task.GetAwaiter().GetResult()
+                if (-not [string]::IsNullOrWhiteSpace([string]$body)) {
+                    return [string]$body
+                }
+            }
+        } catch {
+            # Fall through to the HttpWebResponse stream path below.
+        }
+    }
+
+    try {
+        $stream = $response.GetResponseStream()
+        if ($null -ne $stream) {
+            $reader = [System.IO.StreamReader]::new($stream)
+            try {
+                $body = $reader.ReadToEnd()
+                if (-not [string]::IsNullOrWhiteSpace($body)) {
+                    return $body
+                }
+            } finally {
+                $reader.Dispose()
+                $stream.Dispose()
+            }
+        }
+    } catch {
+        return $null
+    }
+
+    return $null
+}
+
+function Get-ErrorDescription {
+    param(
+        [object]$ErrorRecord,
+        [int]$MaximumLength = 1200
+    )
+
+    $body = Get-HttpErrorBody $ErrorRecord
+    if ([string]::IsNullOrWhiteSpace([string]$body)) {
+        return [string]$ErrorRecord.Exception.Message
+    }
+
+    $description = [string]$body
+    if ($description.Length -gt $MaximumLength) {
+        return $description.Substring(0, $MaximumLength) + "..."
+    }
+    return $description
+}
+
 function Invoke-JsonRequest {
     param(
         [ValidateSet("GET", "POST")]
@@ -216,7 +290,8 @@ function Invoke-JsonRequest {
                 continue
             }
 
-            throw "Request failed: $Method $Uri | HTTP $statusCode | $($_.Exception.Message)"
+            $errorDescription = Get-ErrorDescription $_
+            throw "Request failed: $Method $Uri | HTTP $statusCode | $errorDescription"
         }
     }
 
@@ -610,6 +685,10 @@ $sent = 0
 $wouldSend = 0
 $offlineSkipped = 0
 $notReady = 0
+$notOptedIn = 0
+$recipientThrottled = 0
+$notificationFailures = 0
+$reportedFailureSignatures = @{}
 
 foreach ($candidate in $candidates) {
     if ($sent -ge $notificationLimit -and $Apply.IsPresent) {
@@ -658,7 +737,23 @@ foreach ($candidate in $candidates) {
         $sent++
         Write-Output "SENT userId=$($candidate.UserId) key=$key statusCode=$($response.StatusCode)"
     } catch {
-        Write-Warning "Notification send failed for userId=$($candidate.UserId) key=$key. $($_.Exception.Message)"
+        $errorMessage = [string]$_.Exception.Message
+        if ($errorMessage -match "HTTP 400.*(?:FAILED_PRECONDITION|not opted in|not eligible|cannot receive notifications)") {
+            $notOptedIn++
+            continue
+        }
+
+        if ($errorMessage -match "HTTP 429.*(?:1 notification per recipient|notification per recipient|recipient.*throttle|recipient.*cooldown)") {
+            $recipientThrottled++
+            continue
+        }
+
+        $notificationFailures++
+        $failureSignature = $errorMessage -replace "userId=\d+", "userId=<redacted>"
+        if (-not $reportedFailureSignatures.ContainsKey($failureSignature)) {
+            $reportedFailureSignatures[$failureSignature] = $true
+            Write-Warning "Notification send failed for userId=$($candidate.UserId) key=$key. $errorMessage"
+        }
     }
 
     if ($delayMilliseconds -gt 0) {
@@ -666,5 +761,5 @@ foreach ($candidate in $candidates) {
     }
 }
 
-Write-Output ("Complete. scanned={0} candidates={1} sent={2} dryRun={3} wouldSend={4} notReady={5} offlineOrUnknown={6} skipped={7}" -f `
-    $entries.Count, $candidates.Count, $sent, (-not $Apply.IsPresent), $wouldSend, $notReady, $offlineSkipped, $skipped)
+Write-Output ("Complete. scanned={0} candidates={1} sent={2} dryRun={3} wouldSend={4} notReady={5} offlineOrUnknown={6} notOptedIn={7} recipientThrottled={8} notificationFailures={9} skipped={10}" -f `
+    $entries.Count, $candidates.Count, $sent, (-not $Apply.IsPresent), $wouldSend, $notReady, $offlineSkipped, $notOptedIn, $recipientThrottled, $notificationFailures, $skipped)
