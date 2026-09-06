@@ -261,12 +261,29 @@ function Get-StoreEntries {
 
         $response = Invoke-OpenCloudJsonRequest -Method GET -Uri $uri
         $body = $response.Body
-        $pageEntries = Get-PropertyValue $body "dataStoreEntries"
-        if ($null -eq $pageEntries) {
-            $pageEntries = Get-PropertyValue $body "entries"
+        # Preserve an empty array. PowerShell otherwise unwraps it to $null and
+        # incorrectly reports a valid empty page as a malformed response.
+        $dataStoreEntriesProperty = if ($null -ne $body) {
+            $body.PSObject.Properties["dataStoreEntries"]
+        } else {
+            $null
         }
-        if ($null -eq $pageEntries) {
-            throw "List response did not contain dataStoreEntries or entries."
+        $entriesProperty = if ($null -ne $body) {
+            $body.PSObject.Properties["entries"]
+        } else {
+            $null
+        }
+        if ($null -ne $dataStoreEntriesProperty) {
+            $pageEntries = @($dataStoreEntriesProperty.Value)
+        } elseif ($null -ne $entriesProperty) {
+            $pageEntries = @($entriesProperty.Value)
+        } else {
+            $responseProperties = if ($null -ne $body) {
+                (@($body.PSObject.Properties | ForEach-Object { $_.Name }) -join ",")
+            } else {
+                "<empty>"
+            }
+            throw "List response did not contain dataStoreEntries or entries. Response properties: $responseProperties"
         }
 
         foreach ($entry in @($pageEntries)) {
