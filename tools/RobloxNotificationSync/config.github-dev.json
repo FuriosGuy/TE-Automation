@@ -2,6 +2,7 @@
   "enabled": false,
   "universeId": "9799168239",
   "playerDataStore": "PlayerStats_v1",
+  "dataStoreScope": "global",
   "playerKeyPrefix": "player_",
   "groupId": "13706307",
   "maxPageSize": 100,

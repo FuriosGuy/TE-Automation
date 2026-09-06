@@ -116,19 +116,25 @@ function Get-PositiveInt {
 function Get-UserIdFromEntryId {
     param(
         [string]$EntryId,
-        [string]$Prefix
+        [string]$Prefix,
+        [string]$Scope
     )
 
-    if ($EntryId -notmatch ("^" + [regex]::Escape($Prefix) + "([0-9]+)$")) {
-        return $null
+    $prefixes = @($Prefix)
+    if (-not [string]::IsNullOrWhiteSpace($Scope)) {
+        $prefixes += "$Scope/$Prefix"
     }
 
-    $userId = 0L
-    if (-not [long]::TryParse($Matches[1], [ref]$userId) -or $userId -le 0) {
-        return $null
+    foreach ($candidatePrefix in $prefixes) {
+        if ($EntryId -match ("^" + [regex]::Escape($candidatePrefix) + "([0-9]+)$")) {
+            $userId = 0L
+            if ([long]::TryParse($Matches[1], [ref]$userId) -and $userId -gt 0) {
+                return $userId
+            }
+        }
     }
 
-    return $userId
+    return $null
 }
 
 function Get-StatusCodeFromException {
@@ -243,6 +249,7 @@ function Get-StoreEntries {
     param(
         [string]$UniverseId,
         [string]$DataStoreId,
+        [string]$Scope,
         [string]$KeyPrefix,
         [int]$PageSize,
         [int]$PageLimit,
@@ -253,8 +260,11 @@ function Get-StoreEntries {
     $pageToken = $null
 
     for ($page = 1; $page -le $PageLimit; $page++) {
+        if ([string]::IsNullOrWhiteSpace($Scope)) {
+            throw "Data store scope is required for notification scans."
+        }
         $filter = [uri]::EscapeDataString(('id.startsWith("' + $KeyPrefix + '")'))
-        $uri = "$ApiRoot/universes/$UniverseId/data-stores/$DataStoreId/entries?maxPageSize=$PageSize&filter=$filter"
+        $uri = "$ApiRoot/universes/$UniverseId/data-stores/$DataStoreId/scopes/$Scope/entries?maxPageSize=$PageSize&filter=$filter"
         if (-not [string]::IsNullOrWhiteSpace([string]$pageToken)) {
             $uri += "&pageToken=" + [uri]::EscapeDataString([string]$pageToken)
         }
@@ -517,6 +527,10 @@ try {
 $enabled = Get-PropertyValue $config "enabled"
 $universeId = Get-RequiredString $config "universeId"
 $dataStoreId = Get-RequiredString $config "playerDataStore"
+$dataStoreScope = Get-PropertyValue $config "dataStoreScope"
+if ([string]::IsNullOrWhiteSpace([string]$dataStoreScope)) {
+    $dataStoreScope = "global"
+}
 $keyPrefix = Get-RequiredString $config "playerKeyPrefix"
 $groupId = Get-RequiredString $config "groupId"
 $pageSize = Get-PositiveInt $config "maxPageSize" 100
@@ -550,7 +564,7 @@ if (-not [string]::IsNullOrWhiteSpace($NowUnixOverride)) {
 }
 
 Write-Output ("Scanning {0} for ready reward notifications. apply={1} nowUnix={2}" -f $universeId, $Apply.IsPresent, $nowUnix)
-$entries = Get-StoreEntries $universeId $dataStoreId $keyPrefix $pageSize $pageLimit $userLimit
+$entries = Get-StoreEntries $universeId $dataStoreId ([string]$dataStoreScope) $keyPrefix $pageSize $pageLimit $userLimit
 $candidates = [System.Collections.Generic.List[object]]::new()
 $skipped = 0
 
@@ -559,7 +573,7 @@ foreach ($entry in $entries) {
     if ($null -eq $entryId) {
         $entryId = Get-PropertyValue $entry "key"
     }
-    $userId = Get-UserIdFromEntryId ([string]$entryId) $keyPrefix
+    $userId = Get-UserIdFromEntryId ([string]$entryId) $keyPrefix ([string]$dataStoreScope)
     if ($null -eq $userId) {
         $skipped++
         continue
