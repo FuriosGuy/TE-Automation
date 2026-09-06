@@ -738,21 +738,22 @@ foreach ($candidate in $candidates) {
         Write-Output "SENT userId=$($candidate.UserId) key=$key statusCode=$($response.StatusCode)"
     } catch {
         $errorMessage = [string]$_.Exception.Message
-        if ($errorMessage -match "HTTP 400.*(?:FAILED_PRECONDITION|not opted in|not eligible|cannot receive notifications)") {
+        $normalizedErrorMessage = $errorMessage -replace "\s+", " "
+        if ($normalizedErrorMessage -match "HTTP 400.*(?:FAILED_PRECONDITION|not opted in|not eligible|cannot receive notifications)") {
             $notOptedIn++
             continue
         }
 
-        if ($errorMessage -match "HTTP 429.*(?:1 notification per recipient|notification per recipient|recipient.*throttle|recipient.*cooldown)") {
+        if ($normalizedErrorMessage -match "HTTP 429.*(?:1 notification per recipient|notification per recipient|recipient.*throttle|recipient.*cooldown)") {
             $recipientThrottled++
             continue
         }
 
         $notificationFailures++
-        $failureSignature = $errorMessage -replace "userId=\d+", "userId=<redacted>"
+        $failureSignature = $normalizedErrorMessage -replace "userId=\d+", "userId=<redacted>"
         if (-not $reportedFailureSignatures.ContainsKey($failureSignature)) {
             $reportedFailureSignatures[$failureSignature] = $true
-            Write-Warning "Notification send failed for userId=$($candidate.UserId) key=$key. $errorMessage"
+            Write-Warning "Notification send failed for userId=$($candidate.UserId) key=$key. $normalizedErrorMessage"
         }
     }
 
