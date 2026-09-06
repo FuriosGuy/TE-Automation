@@ -1,4 +1,4 @@
-# TsunamiEscape Automation
+# Automation
 
 Scheduled Roblox Experience Event synchronization for the main and DEV universes.
 
