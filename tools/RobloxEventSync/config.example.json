@@ -1,0 +1,59 @@
+{
+  "universeId": "9799168239",
+  "groupId": "13706307",
+  "placeId": "116587108840614",
+  "stateFile": "event-state.json",
+  "visibility": "private",
+  "notificationAudience": "rsvp",
+  "publishPolicy": {
+    "mode": "one-per-event-key",
+    "sequence": [
+      "Bloodmoon",
+      "AdminAbuse",
+      "Weekend2x"
+    ]
+  },
+  "events": [
+    {
+      "eventKey": "Bloodmoon",
+      "enabled": true,
+      "platformEventId": "",
+      "platformEventStartTimeUtc": "",
+      "title": "BLOOD MOON EVENT",
+      "subtitle": "SURVIVE THE BLOOD MOON",
+      "description": "Survive the Blood Moon, earn Blood Moon Wins, and unlock exclusive rewards.",
+      "thumbnailId": "97220360470213",
+      "categories": [
+        {
+          "category": "newContent",
+          "rank": 0
+        }
+      ],
+      "schedule": {
+        "kind": "RecurringWindow",
+        "cycleStartUtc": "2026-09-04T23:00:00Z",
+        "activeDurationSeconds": 259200,
+        "graceDurationSeconds": 259200
+      }
+    },
+    {
+      "eventKey": "Weekend2x",
+      "enabled": true,
+      "platformEventId": "",
+      "platformEventStartTimeUtc": "",
+      "title": "2X WEEKEND",
+      "subtitle": "EARN DOUBLE XP AND WINS",
+      "description": "Earn double normally earned XP and Win rewards during the weekend.",
+      "thumbnailId": "75145457809023",
+      "categories": [
+        {
+          "category": "newContent",
+          "rank": 0
+        }
+      ],
+      "schedule": {
+        "kind": "WeekendTokyoToPacific"
+      }
+    }
+  ]
+}

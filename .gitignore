@@ -1,0 +1,8 @@
+# Local secrets and mutable runtime state
+tools/RobloxEventSync/.env
+tools/RobloxEventSync/config.json
+tools/RobloxEventSync/event-state.json
+
+# PowerShell and editor noise
+*.log
+.DS_Store

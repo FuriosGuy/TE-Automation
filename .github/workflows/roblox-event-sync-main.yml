@@ -1,0 +1,35 @@
+name: Main Version
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roblox-event-sync-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Sync MAIN experience events
+        shell: pwsh
+        env:
+          ROBLOX_EVENT_MAIN_API_KEY: ${{ secrets.ROBLOX_EVENT_MAIN_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:ROBLOX_EVENT_MAIN_API_KEY)) {
+            throw "Missing GitHub Actions secret ROBLOX_EVENT_MAIN_API_KEY."
+          }
+
+          ./tools/RobloxEventSync/Sync-BloodMoonEvent.ps1 `
+            -ConfigPath ./tools/RobloxEventSync/config.github-main.json `
+            -ApiKeyEnvironmentVariable ROBLOX_EVENT_MAIN_API_KEY `
+            -Apply
