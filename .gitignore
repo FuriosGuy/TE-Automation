@@ -2,6 +2,8 @@
 tools/RobloxEventSync/.env
 tools/RobloxEventSync/config.json
 tools/RobloxEventSync/event-state.json
+tools/RobloxEventSync/config.dev-test.json
+tools/RobloxEventSync/event-test-state.json
 
 # PowerShell and editor noise
 *.log

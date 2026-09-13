@@ -1,6 +1,9 @@
 # Automation
 
 Scheduled Roblox Experience Event synchronization for the main and DEV universes.
+The event sync mirrors the game's deterministic Major/Minor rotation for
+dashboard visibility and analytics; gameplay state remains authoritative in
+SpeedBrainrotDev.
 
 ## GitHub Actions secrets
 
@@ -17,6 +20,8 @@ Keep API keys out of JSON files, `.env`, commits, and workflow output.
 - `Main Version` syncs `config.github-main.json` hourly.
 - `DEV Version` syncs `config.github-dev.json` hourly.
 - `Main Reward Notifications` scans ready reward state every 30 minutes and sends at most one notification per offline user per run.
+- Tiered events use the configured rotation: Major, then Minor, then Major.
+- `Weekend2x` remains independently scheduled, and disabled events are not synced.
 
 All workflows support manual runs from the GitHub Actions tab.
 
@@ -29,6 +34,27 @@ Copy `tools/RobloxEventSync/.env.example` to `.env`, set the matching API key, t
 ```
 
 Use `config.github-main.json` or `config.github-dev.json` for a dry run without local config.
+The script name is retained for workflow compatibility even though it now syncs
+all configured events.
+
+## Event rotation
+
+`tools/RobloxEventSync/config*.json` contains the same rotation anchor, seed,
+and version used by the game. Blood Moon is the Major event, while Neon Rush
+and Frostbite Rally are Minor-event candidates. The sync derives only the
+current event and the next event window, so it does not create a second
+independent schedule.
+
+Run a safe preview with a fixed timestamp before applying changes:
+
+```powershell
+./tools/RobloxEventSync/Sync-BloodMoonEvent.ps1 `
+  -ConfigPath ./tools/RobloxEventSync/config.github-main.json `
+  -NowUtcOverride 2026-09-14T12:00:00Z
+```
+
+Review the generated payloads first. Add `-Apply` only when the dashboard
+events should be created or updated.
 
 ## Reward notification sync
 

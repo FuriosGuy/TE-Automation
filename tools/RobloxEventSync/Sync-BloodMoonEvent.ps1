@@ -157,6 +157,26 @@ function Convert-ToInt64 {
     return $parsed
 }
 
+function Convert-ToNonNegativeInt64 {
+    param(
+        [object]$Value,
+        [string]$FieldName
+    )
+
+    $parsed = 0L
+    $success = [long]::TryParse(
+        [string]$Value,
+        [Globalization.NumberStyles]::Integer,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [ref]$parsed
+    )
+    if (-not $success -or $parsed -lt 0) {
+        throw "$FieldName must be a non-negative integer."
+    }
+
+    return $parsed
+}
+
 function Convert-ToNonNegativeInt32 {
     param(
         [object]$Value,
@@ -411,6 +431,240 @@ function Get-RecurringWindow {
     }
 }
 
+function Get-RotationConfig {
+    param([object]$Config)
+
+    $rotation = Get-PropertyValue $Config "rotation"
+    if ($null -eq $rotation -or (Get-PropertyValue $rotation "enabled") -ne $true) {
+        return $null
+    }
+
+    $startValue = Get-PropertyValue $rotation "rotationStartUtc"
+    $seedValue = Get-PropertyValue $rotation "randomSeed"
+    $versionValue = Get-PropertyValue $rotation "version"
+    if ($null -eq $startValue -or [string]::IsNullOrWhiteSpace([string]$startValue)) {
+        throw "rotation.rotationStartUtc is required when rotation is enabled."
+    }
+    if ($null -eq $seedValue -or [string]::IsNullOrWhiteSpace([string]$seedValue)) {
+        throw "rotation.randomSeed is required when rotation is enabled."
+    }
+    if ($null -eq $versionValue -or [string]::IsNullOrWhiteSpace([string]$versionValue)) {
+        throw "rotation.version is required when rotation is enabled."
+    }
+
+    return [pscustomobject]@{
+        start = Convert-ToUtcDateTimeOffset $startValue "rotation.rotationStartUtc"
+        randomSeed = Convert-ToInt64 $seedValue "rotation.randomSeed"
+        version = [string]$versionValue
+    }
+}
+
+function Get-RotationTier {
+    param([object]$Event)
+
+    $tier = Get-PropertyValue $Event "rotationTier"
+    if ($tier -in @("Major", "Minor")) {
+        return [string]$tier
+    }
+
+    return $null
+}
+
+function Get-RotationCandidates {
+    param(
+        [object]$Config,
+        [string]$Tier
+    )
+
+    $candidates = [Collections.Generic.List[object]]::new()
+    foreach ($event in Get-ConfiguredEvents $Config) {
+        if ((Get-PropertyValue $event "enabled") -eq $false) {
+            continue
+        }
+
+        $eventTier = Get-RotationTier $event
+        if ($null -eq $eventTier -or ($null -ne $Tier -and $eventTier -ne $Tier)) {
+            continue
+        }
+
+        $eventKey = Get-RequiredString $event "eventKey"
+        $schedule = Get-PropertyValue $event "schedule"
+        if ($null -eq $schedule -or (Get-RequiredString $schedule "kind") -ne "RecurringWindow") {
+            throw "Rotating event '$eventKey' requires a RecurringWindow schedule with active and grace durations."
+        }
+
+        # Validate durations while building the candidate list so a malformed
+        # event cannot silently alter the rotation.
+        $activeSeconds = Convert-ToInt64 (Get-PropertyValue $schedule "activeDurationSeconds") "${eventKey}.activeDurationSeconds"
+        $graceSeconds = Convert-ToNonNegativeInt64 (Get-PropertyValue $schedule "graceDurationSeconds") "${eventKey}.graceDurationSeconds"
+        if ($activeSeconds -le 0 -or $graceSeconds -lt 0) {
+            throw "Rotating event '$eventKey' has invalid active or grace duration."
+        }
+
+        $candidates.Add([pscustomobject]@{
+            event = $event
+            eventKey = $eventKey
+        })
+    }
+
+    return @($candidates | Sort-Object eventKey)
+}
+
+function Get-NextRotationTier {
+    param([string]$Tier)
+
+    if ($Tier -eq "Major") {
+        return "Minor"
+    }
+    if ($Tier -eq "Minor") {
+        return "Major"
+    }
+
+    return $null
+}
+
+function Choose-RotationEvent {
+    param(
+        [object]$Config,
+        [string]$Tier,
+        [long]$SequenceIndex,
+        [long]$RandomSeed,
+        [string]$ExcludedEventKey
+    )
+
+    $candidates = @(Get-RotationCandidates $Config $Tier)
+    if ($candidates.Count -eq 0) {
+        return $null
+    }
+
+    $tierSalt = if ($Tier -eq "Major") { 17L } elseif ($Tier -eq "Minor") { 31L } else { 47L }
+    $hash = ($RandomSeed + $SequenceIndex * 1103515245L + $tierSalt * 12345L) % 2147483647L
+    if ($hash -lt 0) {
+        $hash += 2147483647L
+    }
+
+    $candidateIndex = [int]($hash % $candidates.Count)
+    if ($candidates.Count -gt 1 -and $candidates[$candidateIndex].eventKey -eq $ExcludedEventKey) {
+        $candidateIndex = ($candidateIndex + 1) % $candidates.Count
+    }
+
+    return $candidates[$candidateIndex].event
+}
+
+function New-RotationWindow {
+    param(
+        [object]$Event,
+        [long]$SequenceIndex,
+        [DateTimeOffset]$ActiveStart
+    )
+
+    $eventKey = Get-RequiredString $Event "eventKey"
+    $schedule = Get-PropertyValue $Event "schedule"
+    $activeSeconds = Convert-ToInt64 (Get-PropertyValue $schedule "activeDurationSeconds") "${eventKey}.activeDurationSeconds"
+    $graceSeconds = Convert-ToNonNegativeInt64 (Get-PropertyValue $schedule "graceDurationSeconds") "${eventKey}.graceDurationSeconds"
+
+    return [pscustomobject]@{
+        event = $Event
+        eventKey = $eventKey
+        sequenceIndex = $SequenceIndex
+        start = $ActiveStart
+        end = $ActiveStart.AddSeconds($activeSeconds)
+        nextStart = $ActiveStart.AddSeconds($activeSeconds + $graceSeconds)
+    }
+}
+
+function Get-NextRotationWindow {
+    param(
+        [object]$Config,
+        [object]$Window,
+        [object]$RotationConfig
+    )
+
+    $currentTier = Get-RotationTier $Window.event
+    $nextTier = Get-NextRotationTier $currentTier
+    $nextEvent = Choose-RotationEvent `
+        -Config $Config `
+        -Tier $nextTier `
+        -SequenceIndex ([long]$Window.sequenceIndex + 1) `
+        -RandomSeed $RotationConfig.randomSeed `
+        -ExcludedEventKey $Window.eventKey
+
+    if ($null -eq $nextEvent) {
+        # Keep the rotation alive if a future tier is temporarily empty.
+        $nextEvent = Choose-RotationEvent `
+            -Config $Config `
+            -Tier $null `
+            -SequenceIndex ([long]$Window.sequenceIndex + 1) `
+            -RandomSeed $RotationConfig.randomSeed `
+            -ExcludedEventKey ""
+    }
+    if ($null -eq $nextEvent) {
+        throw "No enabled event is available to continue the configured rotation."
+    }
+
+    return New-RotationWindow `
+        -Event $nextEvent `
+        -SequenceIndex ([long]$Window.sequenceIndex + 1) `
+        -ActiveStart $Window.nextStart
+}
+
+function Get-RotationState {
+    param(
+        [object]$Config,
+        [DateTimeOffset]$NowUtc
+    )
+
+    $rotationConfig = Get-RotationConfig $Config
+    if ($null -eq $rotationConfig) {
+        return $null
+    }
+
+    $firstEvent = Choose-RotationEvent `
+        -Config $Config `
+        -Tier "Major" `
+        -SequenceIndex 0 `
+        -RandomSeed $rotationConfig.randomSeed `
+        -ExcludedEventKey ""
+    if ($null -eq $firstEvent) {
+        throw "No enabled Major event is available at rotation start."
+    }
+
+    $window = New-RotationWindow `
+        -Event $firstEvent `
+        -SequenceIndex 0 `
+        -ActiveStart $rotationConfig.start
+    if ($NowUtc -lt $window.start) {
+        return [pscustomobject]@{
+            activeWindow = $null
+            upcomingWindow = $window
+            rotation = $rotationConfig
+        }
+    }
+
+    $advanceSteps = 0
+    while ($NowUtc -ge $window.nextStart -and $advanceSteps -lt 10000) {
+        $window = Get-NextRotationWindow $Config $window $rotationConfig
+        $advanceSteps++
+    }
+    if ($NowUtc -ge $window.nextStart) {
+        throw "Configured rotation exceeded its 10000-window safety limit."
+    }
+
+    if ($NowUtc -lt $window.end) {
+        return [pscustomobject]@{
+            activeWindow = $window
+            upcomingWindow = Get-NextRotationWindow $Config $window $rotationConfig
+            rotation = $rotationConfig
+        }
+    }
+
+    return [pscustomobject]@{
+        activeWindow = $null
+        upcomingWindow = Get-NextRotationWindow $Config $window $rotationConfig
+        rotation = $rotationConfig
+    }
+}
+
 function Get-EventWindow {
     param(
         [object]$Event,
@@ -441,9 +695,40 @@ function Get-EventWindow {
 
 function Get-EventWindows {
     param(
+        [object]$Config,
         [object]$Event,
-        [DateTimeOffset]$NowUtc
+        [DateTimeOffset]$NowUtc,
+        [object]$RotationState
     )
+
+    $rotationTier = Get-RotationTier $Event
+    if ($null -ne $RotationState -and $null -ne $rotationTier) {
+        $eventKey = Get-RequiredString $Event "eventKey"
+        $windows = [Collections.Generic.List[object]]::new()
+        $activeWindow = $RotationState.activeWindow
+        $upcomingWindow = $RotationState.upcomingWindow
+        if ($null -ne $activeWindow -and $activeWindow.eventKey -eq $eventKey) {
+            $windows.Add([pscustomobject]@{
+                window = [pscustomobject]@{
+                    start = $activeWindow.start
+                    end = $activeWindow.end
+                }
+                active = $true
+                isNext = $false
+            })
+        } elseif ($null -ne $upcomingWindow -and $upcomingWindow.eventKey -eq $eventKey) {
+            $windows.Add([pscustomobject]@{
+                window = [pscustomobject]@{
+                    start = $upcomingWindow.start
+                    end = $upcomingWindow.end
+                }
+                active = $false
+                isNext = $true
+            })
+        }
+
+        return @($windows)
+    }
 
     $schedule = Get-PropertyValue $Event "schedule"
     $currentWindow = Get-EventWindow $Event $NowUtc
@@ -582,6 +867,7 @@ function Select-SyncCandidates {
         [string]$RequestedEventKey
     )
 
+    $rotationState = Get-RotationState $Config $NowUtc
     $candidatesByEventKey = @{}
     foreach ($event in Get-ConfiguredEvents $Config) {
         if ((Get-PropertyValue $event "enabled") -eq $false) {
@@ -597,7 +883,11 @@ function Select-SyncCandidates {
             throw "Duplicate eventKey '$eventKey'. Configure one schedule per eventKey."
         }
 
-        $windows = Get-EventWindows $event $NowUtc
+        $windows = @(Get-EventWindows `
+            -Config $Config `
+            -Event $event `
+            -NowUtc $NowUtc `
+            -RotationState $rotationState)
         if ($windows.Count -eq 0) {
             continue
         }
@@ -913,7 +1203,7 @@ try {
     } else {
         Convert-ToUtcDateTimeOffset $NowUtcOverride "NowUtcOverride"
     }
-    $candidates = Select-SyncCandidates $config $nowUtc $EventKey
+    $candidates = @(Select-SyncCandidates $config $nowUtc $EventKey)
     if ($candidates.Count -eq 0) {
         throw "No enabled event has a current or future schedule."
     }

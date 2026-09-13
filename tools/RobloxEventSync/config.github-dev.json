@@ -5,24 +5,32 @@
   "stateFile": "event-state.json",
   "visibility": "private",
   "notificationAudience": "rsvp",
+  "rotation": {
+    "enabled": true,
+    "rotationStartUtc": "2026-09-04T23:00:00Z",
+    "randomSeed": 9824719186,
+    "version": "2"
+  },
   "publishPolicy": {
     "mode": "one-per-event-key",
     "sequence": [
       "Bloodmoon",
-      "AdminAbuse",
+      "NeonRush",
+      "FrostbiteRally",
       "Weekend2x"
     ]
   },
   "events": [
     {
       "eventKey": "Bloodmoon",
+      "rotationTier": "Major",
       "enabled": true,
       "platformEventId": "",
       "platformEventStartTimeUtc": "",
       "title": "BLOOD MOON EVENT",
       "subtitle": "SURVIVE THE BLOOD MOON",
       "description": "Survive the Blood Moon, earn Blood Moon Wins, and unlock exclusive rewards.",
-      "thumbnailId": "97220360470213",
+      "thumbnailId": "128959525567285",
       "categories": [
         {
           "category": "newContent",
@@ -34,6 +42,50 @@
         "cycleStartUtc": "2026-09-04T23:00:00Z",
         "activeDurationSeconds": 259200,
         "graceDurationSeconds": 259200
+      }
+    },
+    {
+      "eventKey": "NeonRush",
+      "rotationTier": "Minor",
+      "enabled": true,
+      "platformEventId": "",
+      "platformEventStartTimeUtc": "",
+      "title": "NEON RUSH EVENT",
+      "subtitle": "RACE THROUGH THE NEON RUSH",
+      "description": "Race through the Neon Rush, earn Neon Rush Wins, and unlock exclusive rewards.",
+      "thumbnailId": "115194863966087",
+      "categories": [
+        {
+          "category": "newContent",
+          "rank": 0
+        }
+      ],
+      "schedule": {
+        "kind": "RecurringWindow",
+        "activeDurationSeconds": 172800,
+        "graceDurationSeconds": 172800
+      }
+    },
+    {
+      "eventKey": "FrostbiteRally",
+      "rotationTier": "Minor",
+      "enabled": true,
+      "platformEventId": "",
+      "platformEventStartTimeUtc": "",
+      "title": "FROSTBITE RALLY EVENT",
+      "subtitle": "RACE THROUGH THE FROSTBITE RALLY",
+      "description": "Race through the Frostbite Rally, earn Frostbite Rally Wins, and unlock exclusive rewards.",
+      "thumbnailId": "75464816447978",
+      "categories": [
+        {
+          "category": "newContent",
+          "rank": 0
+        }
+      ],
+      "schedule": {
+        "kind": "RecurringWindow",
+        "activeDurationSeconds": 172800,
+        "graceDurationSeconds": 172800
       }
     },
     {
