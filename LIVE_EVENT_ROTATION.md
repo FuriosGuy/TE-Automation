@@ -27,9 +27,11 @@ particle assets remain authoritative in `SpeedBrainrotDev`.
 ## Sync behavior
 
 Each run stages at most the current tiered window and its next window. The next
-window is private when the root config requests publication only after the
-previous window ends. When that window becomes current, the next scheduled run
-updates it to the final visibility.
+window stays private while the previous active window is still running. Once
+that previous active window ends, the next scheduled run publishes it using its
+final visibility, even though its own start time may still be in the future.
+The game's separate in-game 24-hour display gate does not control this
+Experience Events visibility.
 
 The state file is keyed by event key and window start. This prevents a later
 run from creating a duplicate platform event for the same rotation window.

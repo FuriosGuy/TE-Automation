@@ -638,6 +638,7 @@ function Get-RotationState {
             activeWindow = $null
             upcomingWindow = $window
             rotation = $rotationConfig
+            previousWindow = $null
         }
     }
 
@@ -655,6 +656,7 @@ function Get-RotationState {
             activeWindow = $window
             upcomingWindow = Get-NextRotationWindow $Config $window $rotationConfig
             rotation = $rotationConfig
+            previousWindow = $window
         }
     }
 
@@ -662,6 +664,7 @@ function Get-RotationState {
         activeWindow = $null
         upcomingWindow = Get-NextRotationWindow $Config $window $rotationConfig
         rotation = $rotationConfig
+        previousWindow = $window
     }
 }
 
@@ -715,6 +718,7 @@ function Get-EventWindows {
                 }
                 active = $true
                 isNext = $false
+                previousWindowEnd = $null
             })
         } elseif ($null -ne $upcomingWindow -and $upcomingWindow.eventKey -eq $eventKey) {
             $windows.Add([pscustomobject]@{
@@ -724,6 +728,11 @@ function Get-EventWindows {
                 }
                 active = $false
                 isNext = $true
+                previousWindowEnd = if ($null -ne $RotationState.previousWindow) {
+                    $RotationState.previousWindow.end
+                } else {
+                    $null
+                }
             })
         }
 
@@ -740,6 +749,7 @@ function Get-EventWindows {
         window = $currentWindow
         active = $currentWindow.start -le $NowUtc -and $currentWindow.end -gt $NowUtc
         isNext = $false
+        previousWindowEnd = $null
     }
     $windows = [Collections.Generic.List[object]]::new()
     $windows.Add($currentCandidate)
@@ -767,6 +777,7 @@ function Get-EventWindows {
             window = $nextWindow
             active = $false
             isNext = $true
+            previousWindowEnd = $currentWindow.end
         })
     }
 
@@ -900,6 +911,7 @@ function Select-SyncCandidates {
                 window = $windowCandidate.window
                 active = $windowCandidate.active
                 isNext = $windowCandidate.isNext
+                previousWindowEnd = $windowCandidate.previousWindowEnd
                 sequenceRank = Get-SequenceRank $Config $eventKey
                 priority = if ($null -ne (Get-PropertyValue $event "priority")) { [int](Get-PropertyValue $event "priority") } else { 0 }
             })
@@ -922,7 +934,8 @@ function Get-DesiredVisibility {
     param(
         [object]$Event,
         [object]$Candidate,
-        [object]$RootConfig
+        [object]$RootConfig,
+        [DateTimeOffset]$NowUtc
     )
 
     $finalVisibility = Get-PropertyValue $Event "visibility"
@@ -936,14 +949,17 @@ function Get-DesiredVisibility {
         $publishAfterPreviousEnds = Get-PropertyValue $RootConfig "publishAfterPreviousWindowEnds"
     }
     if ($publishAfterPreviousEnds -eq $true -and $Candidate.isNext -eq $true -and $finalVisibility -eq "public") {
-        $prePublishVisibility = Get-PropertyValue $Event "prePublishVisibility"
-        if ($null -eq $prePublishVisibility) {
-            $prePublishVisibility = Get-PropertyValue $RootConfig "prePublishVisibility"
+        $previousWindowEnd = Get-PropertyValue $Candidate "previousWindowEnd"
+        if ($null -eq $previousWindowEnd -or $NowUtc -lt $previousWindowEnd) {
+            $prePublishVisibility = Get-PropertyValue $Event "prePublishVisibility"
+            if ($null -eq $prePublishVisibility) {
+                $prePublishVisibility = Get-PropertyValue $RootConfig "prePublishVisibility"
+            }
+            if ($null -eq $prePublishVisibility -or [string]::IsNullOrWhiteSpace([string]$prePublishVisibility)) {
+                $prePublishVisibility = "private"
+            }
+            return ([string]$prePublishVisibility).ToLowerInvariant()
         }
-        if ($null -eq $prePublishVisibility -or [string]::IsNullOrWhiteSpace([string]$prePublishVisibility)) {
-            $prePublishVisibility = "private"
-        }
-        return ([string]$prePublishVisibility).ToLowerInvariant()
     }
 
     return $finalVisibility
@@ -1219,7 +1235,8 @@ try {
         $desiredVisibility = Get-DesiredVisibility `
             -Event $candidate.event `
             -Candidate $candidate `
-            -RootConfig $config
+            -RootConfig $config `
+            -NowUtc $nowUtc
         $payload = New-EventPayload `
             -Event $candidate.event `
             -WindowStart $candidate.window.start `
