@@ -39,18 +39,19 @@ all configured events.
 
 ## Event rotation
 
-`tools/RobloxEventSync/config*.json` contains the same rotation anchor, seed,
-and version used by the game. Blood Moon is the Major event, while Neon Rush
-and Frostbite Rally are Minor-event candidates. The sync derives only the
-current event and the next event window, so it does not create a second
-independent schedule.
+`tools/RobloxEventSync/config.github-main.json` mirrors the production game's
+rotation anchor, seed, version, and one-time opening-window override.
+`config.github-dev.json` keeps a separate private DEV schedule. Blood Moon is
+the Major event; Neon Rush and Frostbite Rally are Minor-event candidates.
+The sync derives only the current event and next event window, so it does not
+create a second independent schedule.
 
 Run a safe preview with a fixed timestamp before applying changes:
 
 ```powershell
 ./tools/RobloxEventSync/Sync-BloodMoonEvent.ps1 `
   -ConfigPath ./tools/RobloxEventSync/config.github-main.json `
-  -NowUtcOverride 2026-09-14T12:00:00Z
+  -NowUtcOverride 2026-10-04T12:00:00Z
 ```
 
 Review the generated payloads first. Add `-Apply` only when the dashboard

@@ -9,9 +9,13 @@
   "notificationAudience": "rsvp",
   "rotation": {
     "enabled": true,
-    "rotationStartUtc": "2026-09-10T23:00:00Z",
+    "rotationStartUtc": "2026-09-30T23:00:00Z",
     "randomSeed": 9824719186,
-    "version": "2"
+    "version": "3",
+    "firstEventTier": "Major",
+    "firstSequenceIndex": 4,
+    "firstEventActiveDurationSeconds": 259200,
+    "firstEventGraceDurationSeconds": 172800
   },
   "publishPolicy": {
     "mode": "one-per-event-key",
@@ -41,9 +45,9 @@
       ],
       "schedule": {
         "kind": "RecurringWindow",
-        "cycleStartUtc": "2026-09-04T23:00:00Z",
-        "activeDurationSeconds": 259200,
-        "graceDurationSeconds": 259200
+        "cycleStartUtc": "2026-09-30T23:00:00Z",
+        "activeDurationSeconds": 172800,
+        "graceDurationSeconds": 172800
       }
     },
     {
@@ -64,7 +68,7 @@
       ],
       "schedule": {
         "kind": "RecurringWindow",
-        "activeDurationSeconds": 172800,
+        "activeDurationSeconds": 86400,
         "graceDurationSeconds": 172800
       }
     },
@@ -86,7 +90,7 @@
       ],
       "schedule": {
         "kind": "RecurringWindow",
-        "activeDurationSeconds": 172800,
+        "activeDurationSeconds": 86400,
         "graceDurationSeconds": 172800
       }
     },

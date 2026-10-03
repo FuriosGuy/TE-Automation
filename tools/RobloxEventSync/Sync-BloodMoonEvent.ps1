@@ -442,6 +442,10 @@ function Get-RotationConfig {
     $startValue = Get-PropertyValue $rotation "rotationStartUtc"
     $seedValue = Get-PropertyValue $rotation "randomSeed"
     $versionValue = Get-PropertyValue $rotation "version"
+    $firstEventTierValue = Get-PropertyValue $rotation "firstEventTier"
+    $firstSequenceIndexValue = Get-PropertyValue $rotation "firstSequenceIndex"
+    $firstActiveDurationValue = Get-PropertyValue $rotation "firstEventActiveDurationSeconds"
+    $firstGraceDurationValue = Get-PropertyValue $rotation "firstEventGraceDurationSeconds"
     if ($null -eq $startValue -or [string]::IsNullOrWhiteSpace([string]$startValue)) {
         throw "rotation.rotationStartUtc is required when rotation is enabled."
     }
@@ -452,10 +456,43 @@ function Get-RotationConfig {
         throw "rotation.version is required when rotation is enabled."
     }
 
+    $firstEventTier = if ($null -eq $firstEventTierValue) { "Major" } else { [string]$firstEventTierValue }
+    if ($firstEventTier -notin @("Major", "Minor")) {
+        throw "rotation.firstEventTier must be Major or Minor."
+    }
+
+    $firstSequenceIndex = if ($null -eq $firstSequenceIndexValue) {
+        0L
+    } else {
+        Convert-ToInt64 $firstSequenceIndexValue "rotation.firstSequenceIndex"
+    }
+    if ($firstSequenceIndex -lt 0) {
+        throw "rotation.firstSequenceIndex must not be negative."
+    }
+
+    $firstActiveDuration = if ($null -eq $firstActiveDurationValue) {
+        $null
+    } else {
+        Convert-ToInt64 $firstActiveDurationValue "rotation.firstEventActiveDurationSeconds"
+    }
+    if ($null -ne $firstActiveDuration -and $firstActiveDuration -le 0) {
+        throw "rotation.firstEventActiveDurationSeconds must be greater than zero."
+    }
+
+    $firstGraceDuration = if ($null -eq $firstGraceDurationValue) {
+        $null
+    } else {
+        Convert-ToNonNegativeInt64 $firstGraceDurationValue "rotation.firstEventGraceDurationSeconds"
+    }
+
     return [pscustomobject]@{
         start = Convert-ToUtcDateTimeOffset $startValue "rotation.rotationStartUtc"
         randomSeed = Convert-ToInt64 $seedValue "rotation.randomSeed"
         version = [string]$versionValue
+        firstEventTier = $firstEventTier
+        firstSequenceIndex = [long]$firstSequenceIndex
+        firstEventActiveDurationSeconds = $firstActiveDuration
+        firstEventGraceDurationSeconds = $firstGraceDuration
     }
 }
 
@@ -555,13 +592,21 @@ function New-RotationWindow {
     param(
         [object]$Event,
         [long]$SequenceIndex,
-        [DateTimeOffset]$ActiveStart
+        [DateTimeOffset]$ActiveStart,
+        [long]$ActiveDurationSecondsOverride = 0,
+        [long]$GraceDurationSecondsOverride = -1
     )
 
     $eventKey = Get-RequiredString $Event "eventKey"
     $schedule = Get-PropertyValue $Event "schedule"
     $activeSeconds = Convert-ToInt64 (Get-PropertyValue $schedule "activeDurationSeconds") "${eventKey}.activeDurationSeconds"
     $graceSeconds = Convert-ToNonNegativeInt64 (Get-PropertyValue $schedule "graceDurationSeconds") "${eventKey}.graceDurationSeconds"
+    if ($ActiveDurationSecondsOverride -gt 0) {
+        $activeSeconds = $ActiveDurationSecondsOverride
+    }
+    if ($GraceDurationSecondsOverride -ge 0) {
+        $graceSeconds = $GraceDurationSecondsOverride
+    }
 
     return [pscustomobject]@{
         event = $Event
@@ -621,18 +666,31 @@ function Get-RotationState {
 
     $firstEvent = Choose-RotationEvent `
         -Config $Config `
-        -Tier "Major" `
-        -SequenceIndex 0 `
+        -Tier $rotationConfig.firstEventTier `
+        -SequenceIndex $rotationConfig.firstSequenceIndex `
         -RandomSeed $rotationConfig.randomSeed `
         -ExcludedEventKey ""
     if ($null -eq $firstEvent) {
-        throw "No enabled Major event is available at rotation start."
+        throw "No enabled $($rotationConfig.firstEventTier) event is available at rotation start."
+    }
+
+    $firstActiveDurationOverride = if ($null -ne $rotationConfig.firstEventActiveDurationSeconds) {
+        [long]$rotationConfig.firstEventActiveDurationSeconds
+    } else {
+        0L
+    }
+    $firstGraceDurationOverride = if ($null -ne $rotationConfig.firstEventGraceDurationSeconds) {
+        [long]$rotationConfig.firstEventGraceDurationSeconds
+    } else {
+        -1L
     }
 
     $window = New-RotationWindow `
         -Event $firstEvent `
-        -SequenceIndex 0 `
-        -ActiveStart $rotationConfig.start
+        -SequenceIndex $rotationConfig.firstSequenceIndex `
+        -ActiveStart $rotationConfig.start `
+        -ActiveDurationSecondsOverride $firstActiveDurationOverride `
+        -GraceDurationSecondsOverride $firstGraceDurationOverride
     if ($NowUtc -lt $window.start) {
         return [pscustomobject]@{
             activeWindow = $null

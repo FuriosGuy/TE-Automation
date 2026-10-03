@@ -6,19 +6,26 @@ environments. Those responsibilities remain in `SpeedBrainrotDev`.
 
 ## Rotation
 
-- The rotation starts at `2026-09-10T23:00:00Z`, aligned with the current live Blood Moon event.
-- The configured seed and version must match the game's `CoreConfig` values.
+- Production transition anchor is `2026-09-30T23:00:00Z`, aligned with the
+  current Blood Moon window. Version `3` and seed must match the game's server
+  `CoreConfig`.
+- The first window is sequence `4` and keeps current Blood Moon active for its
+  original 3 days, followed by the new 2-day grace period.
 - A deterministic enabled Major event is selected first.
 - After its active and grace windows, a deterministic enabled Minor event is selected.
 - After the Minor event, selection returns to the Major tier.
 - If a tier has no enabled candidate, the sync falls back to any enabled tiered event so the timeline remains recoverable.
 - Event IDs are sorted before deterministic selection, so every runner derives the same result.
 
-Current configured tiered events:
+After the preserved Blood Moon window, the next event is Neon Rush starting at
+`2026-10-05T23:00:00Z`. All later windows use these durations:
 
-- `Bloodmoon`: Major, 3 days active, 3 days grace.
-- `NeonRush`: Minor, 2 days active, 2 days grace.
-- `FrostbiteRally`: Minor, 2 days active, 2 days grace; thumbnail `75464816447978`.
+- `Bloodmoon`: Major, 2 days active, 2 days grace.
+- `NeonRush`: Minor, 1 day active, 2 days grace.
+- `FrostbiteRally`: Minor, 1 day active, 2 days grace; thumbnail `75464816447978`.
+
+A Major/Minor pair now spans 7 days, down from 10 days. The separate DEV
+universe keeps its private schedule.
 
 `Weekend2x` remains an independent recurring event and can overlap the tiered
 rotation. Frostbite Rally's thumbnail is mirrored here; its kart catalog and
