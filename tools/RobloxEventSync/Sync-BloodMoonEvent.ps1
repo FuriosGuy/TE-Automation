@@ -1310,8 +1310,21 @@ function Get-ManagedEvent {
 
     $events = Get-AllEvents -UniverseId $script:UniverseId -PageLimit $PageLimit
     $title = Get-RequiredString $Event "title"
+    $eventMultiplier = Get-WeekendMultiplier $Event $Candidate.window.start
+    if ($null -ne $eventMultiplier) {
+        $title = $title.Replace("{MULTIPLIER}", [string]$eventMultiplier)
+    }
+    $matchingTitles = [Collections.Generic.List[string]]::new()
+    $matchingTitles.Add($title)
+    $configuredTitle = Get-RequiredString $Event "title"
+    if ($configuredTitle -ne $title) {
+        $matchingTitles.Add($configuredTitle)
+    }
+    if ($title -match '^\d+X WEEKEND$') {
+        $matchingTitles.Add("MULTIPLIER WEEKEND")
+    }
     $matchingTitleAndPlace = @($events | Where-Object {
-        ([string](Get-PropertyValue $_ "title") -eq $title) -and
+        ($matchingTitles.Contains([string](Get-PropertyValue $_ "title"))) -and
         ([string](Get-PropertyValue $_ "placeId") -eq [string]$PlaceId)
     })
     $exactSchedule = @($matchingTitleAndPlace | Where-Object {
