@@ -854,22 +854,22 @@ function Sync-ExperienceName {
 
     $universeUri = "https://apis.roblox.com/cloud/v2/universes/$UniverseId"
     $currentUniverse = Invoke-RobloxApiRequest -Method GET -Uri $universeUri
-    $currentName = Get-PropertyValue $currentUniverse "name"
-    if ([string]$currentName -eq $DesiredName) {
-        Write-Host "Experience name already current: $DesiredName"
+    $currentDisplayName = Get-PropertyValue $currentUniverse "displayName"
+    if ([string]$currentDisplayName -eq $DesiredName) {
+        Write-Host "Experience display name already current: $DesiredName"
         return
     }
 
-    $body = [pscustomobject]@{ name = $DesiredName }
+    $body = [pscustomobject]@{ displayName = $DesiredName }
     $updatedUniverse = Invoke-RobloxApiRequest `
         -Method PATCH `
-        -Uri "$universeUri`?updateMask=name" `
+        -Uri "$universeUri`?updateMask=displayName" `
         -Body $body
-    if ([string](Get-PropertyValue $updatedUniverse "name") -ne $DesiredName) {
-        throw "Experience name update verification failed. Expected '$DesiredName'."
+    if ([string](Get-PropertyValue $updatedUniverse "displayName") -ne $DesiredName) {
+        throw "Experience display name update verification failed. Expected '$DesiredName'."
     }
 
-    Write-Host "Experience name updated: $currentName -> $DesiredName"
+    Write-Host "Experience display name updated: $currentDisplayName -> $DesiredName"
 }
 
 function Get-EventWindows {
