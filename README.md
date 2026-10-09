@@ -27,6 +27,7 @@ experience-name updates. Restrict the key to MAIN universe `9824719186`.
 - Tiered events use the configured rotation: Major, then Minor, then Major.
 - The current `Weekend2x` event remains untouched until its October 12, 2026 end.
 - `WeekendMultiplier` starts the following scheduled weekend with randomized 2x/3x/4x XP, Wins, and Lucky Block luck; its event stays private until cutover.
+- Each scheduled multiplier event resolves its title, subtitle, and description to that weekend's chosen multiplier (for example, `3X WEEKEND` and `Earn 3x ...`).
 - MAIN experience name changes to `[2X]`, `[3X]`, or `[4X]` during multiplier weekends and returns to `+1 Speed Kart Tsunami Escape` outside them.
 - Disabled events are not synced.
 

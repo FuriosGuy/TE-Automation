@@ -1176,10 +1176,25 @@ function New-EventPayload {
         throw "visibility must be 'public' or 'private'."
     }
 
+    $eventMultiplier = Get-WeekendMultiplier $Event $WindowStart
+    $title = Get-RequiredString $Event "title"
+    $subtitle = Get-RequiredString $Event "subtitle"
+    $description = Get-PropertyValue $Event "description"
+    if ($null -ne $eventMultiplier) {
+        $multiplierText = [string]$eventMultiplier
+        $title = $title.Replace("{MULTIPLIER}", $multiplierText)
+        $subtitle = $subtitle.Replace("{MULTIPLIER}", $multiplierText)
+        if ($null -ne $description) {
+            $description = ([string]$description).Replace("{MULTIPLIER}", $multiplierText)
+        }
+    } elseif ($title.Contains("{MULTIPLIER}") -or $subtitle.Contains("{MULTIPLIER}") -or [string]$description -match '\{MULTIPLIER\}') {
+        throw "Event '$([string](Get-PropertyValue $Event 'eventKey'))' uses {MULTIPLIER} but has no configured multiplier."
+    }
+
     $payload = [ordered]@{
-        title = Get-RequiredString $Event "title"
-        subtitle = Get-RequiredString $Event "subtitle"
-        description = Get-PropertyValue $Event "description"
+        title = $title
+        subtitle = $subtitle
+        description = $description
         startTime = Format-UtcTimestamp $WindowStart
         endTime = Format-UtcTimestamp $WindowEnd
         visibility = $visibility

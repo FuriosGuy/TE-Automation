@@ -110,11 +110,17 @@
     {
       "eventKey": "WeekendMultiplier",
       "enabled": true,
+      "multiplierChoices": [
+        2,
+        3,
+        4
+      ],
+      "multiplierRandomSeed": 9824719186,
       "platformEventId": "",
       "platformEventStartTimeUtc": "",
-      "title": "MULTIPLIER WEEKEND",
-      "subtitle": "BOOSTED XP, WINS AND LUCK",
-      "description": "Every weekend randomly boosts XP Speed, Wins, and Lucky Block luck by 2x, 3x, or 4x.",
+      "title": "{MULTIPLIER}X WEEKEND",
+      "subtitle": "EARN {MULTIPLIER}X XP, WINS AND LUCK",
+      "description": "Earn {MULTIPLIER}x XP Speed, Wins, and Lucky Block luck all weekend.",
       "thumbnailId": "75145457809023",
       "categories": [
         {
