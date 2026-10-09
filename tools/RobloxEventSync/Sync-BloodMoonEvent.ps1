@@ -849,12 +849,13 @@ function Get-DesiredExperienceName {
 function Sync-ExperienceName {
     param(
         [string]$DesiredName,
-        [long]$UniverseId
+        [long]$UniverseId,
+        [long]$PlaceId
     )
 
-    $universeUri = "https://apis.roblox.com/cloud/v2/universes/$UniverseId"
-    $currentUniverse = Invoke-RobloxApiRequest -Method GET -Uri $universeUri
-    $currentDisplayName = Get-PropertyValue $currentUniverse "displayName"
+    $placeUri = "https://apis.roblox.com/cloud/v2/universes/$UniverseId/places/$PlaceId"
+    $currentPlace = Invoke-RobloxApiRequest -Method GET -Uri $placeUri
+    $currentDisplayName = Get-PropertyValue $currentPlace "displayName"
     if ([string]$currentDisplayName -eq $DesiredName) {
         Write-Host "Experience display name already current: $DesiredName"
         return
@@ -863,9 +864,14 @@ function Sync-ExperienceName {
     $body = [pscustomobject]@{ displayName = $DesiredName }
     $updatedUniverse = Invoke-RobloxApiRequest `
         -Method PATCH `
-        -Uri "$universeUri`?updateMask=displayName" `
+        -Uri "$placeUri`?updateMask=displayName" `
         -Body $body
-    if ([string](Get-PropertyValue $updatedUniverse "displayName") -ne $DesiredName) {
+    $updatedDisplayName = Get-PropertyValue $updatedUniverse "displayName"
+    if ([string]$updatedDisplayName -ne $DesiredName) {
+        $verifiedPlace = Invoke-RobloxApiRequest -Method GET -Uri $placeUri
+        $updatedDisplayName = Get-PropertyValue $verifiedPlace "displayName"
+    }
+    if ([string]$updatedDisplayName -ne $DesiredName) {
         throw "Experience display name update verification failed. Expected '$DesiredName'."
     }
 
@@ -1542,7 +1548,10 @@ try {
         Write-Host "Sync succeeded: key=$($candidate.eventKey) | eventId=$managedEventId"
     }
     if ($null -ne $desiredExperienceName) {
-        Sync-ExperienceName -DesiredName $desiredExperienceName -UniverseId $script:UniverseId
+        Sync-ExperienceName `
+            -DesiredName $desiredExperienceName `
+            -UniverseId $script:UniverseId `
+            -PlaceId $placeId
     }
     Write-Host "State written: $stateFile"
 } catch {

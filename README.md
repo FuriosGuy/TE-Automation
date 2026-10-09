@@ -17,7 +17,8 @@ Keep API keys out of JSON files, `.env`, commits, and workflow output.
 
 For `ROBLOX_EVENT_MAIN_API_KEY`, grant `universe.event:read` and
 `universe.event:write` for event synchronization, plus `universe:write` for
-experience-name updates. Restrict the key to MAIN universe `9824719186`.
+universe updates and `universe.place:write` for experience display-name updates.
+Restrict the key to MAIN universe `9824719186` and root place `86681121894203`.
 
 ## Workflows
 
