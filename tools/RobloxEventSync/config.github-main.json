@@ -9,7 +9,7 @@
   "notificationAudience": "rsvp",
   "experienceName": {
     "enabled": true,
-    "baseName": "[🐾PETS!] +1 Speed Kart Tsunami Escape",
+    "baseName": "+1 Speed Kart Tsunami Escape",
     "multiplierNameFormat": "[{MULTIPLIER}X] +1 Speed Kart Tsunami Escape"
   },
   "rotation": {
