@@ -784,7 +784,10 @@ function Get-WeekendMultiplier {
     $modulus = 2147483647L
     $normalizedSeed = [math]::Abs($seed) % $modulus
     $normalizedStart = [math]::Abs($WindowStart.ToUnixTimeSeconds()) % $modulus
-    $hash = (($normalizedStart * 48271) + $normalizedSeed) % $modulus
+    $hash = $normalizedSeed
+    foreach ($character in $normalizedStart.ToString().ToCharArray()) {
+        $hash = (($hash * 65599) + [int]$character) % $modulus
+    }
     $choiceIndex = [int]($hash % @($choices).Count)
     $multiplier = Convert-ToInt64 @($choices)[$choiceIndex] "multiplierChoices item"
     if ($multiplier -lt 1) {
