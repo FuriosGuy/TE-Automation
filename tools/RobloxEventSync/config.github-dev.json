@@ -17,7 +17,7 @@
       "Bloodmoon",
       "NeonRush",
       "FrostbiteRally",
-      "Weekend2x"
+      "WeekendMultiplier"
     ]
   },
   "events": [
@@ -90,7 +90,7 @@
     },
     {
       "eventKey": "Weekend2x",
-      "enabled": true,
+      "enabled": false,
       "platformEventId": "",
       "platformEventStartTimeUtc": "",
       "title": "2X WEEKEND",
@@ -105,6 +105,26 @@
       ],
       "schedule": {
         "kind": "WeekendTokyoToPacific"
+      }
+    },
+    {
+      "eventKey": "WeekendMultiplier",
+      "enabled": true,
+      "platformEventId": "",
+      "platformEventStartTimeUtc": "",
+      "title": "MULTIPLIER WEEKEND",
+      "subtitle": "BOOSTED XP, WINS AND LUCK",
+      "description": "Every weekend randomly boosts XP Speed, Wins, and Lucky Block luck by 2x, 3x, or 4x.",
+      "thumbnailId": "75145457809023",
+      "categories": [
+        {
+          "category": "newContent",
+          "rank": 0
+        }
+      ],
+      "schedule": {
+        "kind": "WeekendTokyoToPacific",
+        "activationAfterUtc": "2026-10-12T07:00:00Z"
       }
     }
   ]

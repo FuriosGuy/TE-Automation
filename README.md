@@ -15,13 +15,20 @@ Add these repository secrets:
 
 Keep API keys out of JSON files, `.env`, commits, and workflow output.
 
+For `ROBLOX_EVENT_MAIN_API_KEY`, grant `universe.event:read` and
+`universe.event:write` for event synchronization, plus `universe:write` for
+experience-name updates. Restrict the key to MAIN universe `9824719186`.
+
 ## Workflows
 
 - `Main Version` syncs `config.github-main.json` hourly.
 - `DEV Version` syncs `config.github-dev.json` hourly.
 - `Main Reward Notifications` scans ready reward state every 30 minutes and sends at most one notification per offline user per run.
 - Tiered events use the configured rotation: Major, then Minor, then Major.
-- `Weekend2x` remains independently scheduled, and disabled events are not synced.
+- The current `Weekend2x` event remains untouched until its October 12, 2026 end.
+- `WeekendMultiplier` starts the following scheduled weekend with randomized 2x/3x/4x XP, Wins, and Lucky Block luck; its event stays private until cutover.
+- MAIN experience name changes to `[2X]`, `[3X]`, or `[4X]` during multiplier weekends and returns to `[🐾PETS!]` outside them.
+- Disabled events are not synced.
 
 All workflows support manual runs from the GitHub Actions tab.
 
@@ -40,7 +47,8 @@ all configured events.
 ## Event rotation
 
 `tools/RobloxEventSync/config.github-main.json` mirrors the production game's
-rotation anchor, seed, version, and one-time opening-window override.
+rotation anchor, seed, version, one-time opening-window override, and the
+post-2X-WEEKEND multiplier-event cutover.
 `config.github-dev.json` keeps a separate private DEV schedule. Blood Moon is
 the Major event; Neon Rush and Frostbite Rally are Minor-event candidates.
 The sync derives only the current event and next event window, so it does not

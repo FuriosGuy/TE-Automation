@@ -27,9 +27,15 @@ After the preserved Blood Moon window, the next event is Neon Rush starting at
 A Major/Minor pair now spans 7 days, down from 10 days. The separate DEV
 universe keeps its private schedule.
 
-`Weekend2x` remains an independent recurring event and can overlap the tiered
-rotation. Frostbite Rally's thumbnail is mirrored here; its kart catalog and
-particle assets remain authoritative in `SpeedBrainrotDev`.
+The current `2X WEEKEND` event (`6931890906215875343`) remains unchanged through
+its configured end at `2026-10-12T07:00:00Z`. Starting with the following
+scheduled weekend, `WeekendMultiplier` replaces it as an independently scheduled
+event. Each weekend grants one deterministic, server-consistent 2x, 3x, or 4x
+boost to XP Speed, Wins, and Lucky Block luck. Its Experience Event stays private
+until the current 2X WEEKEND window ends, then becomes public for RSVP.
+
+Frostbite Rally's thumbnail is mirrored here; its kart catalog and particle
+assets remain authoritative in `SpeedBrainrotDev`.
 
 ## Sync behavior
 

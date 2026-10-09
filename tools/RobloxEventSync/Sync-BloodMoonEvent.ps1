@@ -211,7 +211,7 @@ function Get-RequiredString {
     return [string]$value
 }
 
-function Invoke-RobloxEventRequest {
+function Invoke-RobloxApiRequest {
     param(
         [ValidateSet("GET", "POST", "PATCH")]
         [string]$Method,
@@ -337,7 +337,7 @@ function Get-AllEvents {
             $uri += "&pageToken=$encodedToken"
         }
 
-        $page = Invoke-RobloxEventRequest -Method GET -Uri $uri
+        $page = Invoke-RobloxApiRequest -Method GET -Uri $uri
         $pageEvents = Get-PropertyValue $page "gameEvents"
         foreach ($event in @($pageEvents)) {
             if ($null -ne $event) {
@@ -748,10 +748,125 @@ function Get-EventWindow {
         return Get-RecurringWindow $schedule $NowUtc
     }
     if ($kind -eq "WeekendTokyoToPacific") {
+        $activationAfterValue = Get-PropertyValue $schedule "activationAfterUtc"
+        if ($null -ne $activationAfterValue -and -not [string]::IsNullOrWhiteSpace([string]$activationAfterValue)) {
+            $activationAfter = Convert-ToUtcDateTimeOffset $activationAfterValue "activationAfterUtc"
+            $window = Get-WeekendWindow $NowUtc
+            if ($window.start -lt $activationAfter) {
+                return Get-WeekendWindow ($activationAfter.AddSeconds(1))
+            }
+            return $window
+        }
         return Get-WeekendWindow $NowUtc
     }
 
     throw "Unsupported schedule kind '$kind'."
+}
+
+function Get-WeekendMultiplier {
+    param(
+        [object]$Event,
+        [DateTimeOffset]$WindowStart
+    )
+
+    $fixedMultiplier = Get-PropertyValue $Event "nameMultiplier"
+    if ($null -ne $fixedMultiplier) {
+        return Convert-ToInt64 $fixedMultiplier "nameMultiplier"
+    }
+
+    $choices = Get-PropertyValue $Event "multiplierChoices"
+    if ($null -eq $choices -or @($choices).Count -eq 0) {
+        return $null
+    }
+
+    $seedValue = Get-PropertyValue $Event "multiplierRandomSeed"
+    $seed = if ($null -ne $seedValue) { Convert-ToInt64 $seedValue "multiplierRandomSeed" } else { 1 }
+    $modulus = 2147483647L
+    $normalizedSeed = [math]::Abs($seed) % $modulus
+    $normalizedStart = [math]::Abs($WindowStart.ToUnixTimeSeconds()) % $modulus
+    $hash = (($normalizedStart * 48271) + $normalizedSeed) % $modulus
+    $choiceIndex = [int]($hash % @($choices).Count)
+    $multiplier = Convert-ToInt64 @($choices)[$choiceIndex] "multiplierChoices item"
+    if ($multiplier -lt 1) {
+        throw "multiplierChoices must contain positive integers."
+    }
+
+    return $multiplier
+}
+
+function Get-DesiredExperienceName {
+    param(
+        [object]$Config,
+        [DateTimeOffset]$NowUtc
+    )
+
+    $settings = Get-PropertyValue $Config "experienceName"
+    if ($null -eq $settings -or (Get-PropertyValue $settings "enabled") -ne $true) {
+        return $null
+    }
+
+    $baseName = Get-RequiredString $settings "baseName"
+    $nameTemplate = Get-RequiredString $settings "multiplierNameFormat"
+    $activeMultipliers = [Collections.Generic.List[object]]::new()
+    foreach ($event in @(Get-PropertyValue $Config "events")) {
+        if ((Get-PropertyValue $event "enabled") -eq $false) {
+            continue
+        }
+
+        $fixedMultiplier = Get-PropertyValue $event "nameMultiplier"
+        $choices = Get-PropertyValue $event "multiplierChoices"
+        if ($null -eq $fixedMultiplier -and ($null -eq $choices -or @($choices).Count -eq 0)) {
+            continue
+        }
+
+        $window = Get-EventWindow $event $NowUtc
+        if ($NowUtc -lt $window.start -or $NowUtc -ge $window.end) {
+            continue
+        }
+
+        $multiplier = Get-WeekendMultiplier $event $window.start
+        if ($null -ne $multiplier) {
+            $activeMultipliers.Add([pscustomobject]@{
+                eventKey = Get-RequiredString $event "eventKey"
+                multiplier = $multiplier
+            })
+        }
+    }
+
+    if ($activeMultipliers.Count -gt 1) {
+        throw "Multiple multiplier events are active; refusing ambiguous experience name."
+    }
+    if ($activeMultipliers.Count -eq 0) {
+        return $baseName
+    }
+
+    return $nameTemplate.Replace("{MULTIPLIER}", [string]$activeMultipliers[0].multiplier)
+}
+
+function Sync-ExperienceName {
+    param(
+        [string]$DesiredName,
+        [long]$UniverseId
+    )
+
+    $universeUri = "https://apis.roblox.com/cloud/v2/universes/$UniverseId"
+    $currentUniverse = Invoke-RobloxApiRequest -Method GET -Uri $universeUri
+    $currentName = Get-PropertyValue $currentUniverse "name"
+    if ([string]$currentName -eq $DesiredName) {
+        Write-Host "Experience name already current: $DesiredName"
+        return
+    }
+
+    $body = [pscustomobject]@{ name = $DesiredName }
+    $updatedUniverse = Invoke-RobloxApiRequest `
+        -Method PATCH `
+        -Uri "$universeUri`?updateMask=name" `
+        -Body $body
+    if ([string](Get-PropertyValue $updatedUniverse "name") -ne $DesiredName) {
+        throw "Experience name update verification failed. Expected '$DesiredName'."
+    }
+
+    Write-Host "Experience name updated: $currentName -> $DesiredName"
 }
 
 function Get-EventWindows {
@@ -803,11 +918,22 @@ function Get-EventWindows {
         return @()
     }
 
+    $activationAfterValue = if ($null -ne $schedule) {
+        Get-PropertyValue $schedule "activationAfterUtc"
+    } else {
+        $null
+    }
+    $activationAfter = if ($null -ne $activationAfterValue -and -not [string]::IsNullOrWhiteSpace([string]$activationAfterValue)) {
+        Convert-ToUtcDateTimeOffset $activationAfterValue "activationAfterUtc"
+    } else {
+        $null
+    }
+    $isGatedUpcomingWindow = $null -ne $activationAfter -and $currentWindow.start -gt $NowUtc
     $currentCandidate = [pscustomobject]@{
         window = $currentWindow
         active = $currentWindow.start -le $NowUtc -and $currentWindow.end -gt $NowUtc
-        isNext = $false
-        previousWindowEnd = $null
+        isNext = $isGatedUpcomingWindow
+        previousWindowEnd = if ($isGatedUpcomingWindow) { $activationAfter } else { $null }
     }
     $windows = [Collections.Generic.List[object]]::new()
     $windows.Add($currentCandidate)
@@ -1155,7 +1281,7 @@ function Get-ManagedEvent {
         $eventId = Convert-ToInt64 $eventIdValue "managed event id"
         $uri = "$script:ApiRoot/game-events/$eventId`?fields=*"
         try {
-            return Invoke-RobloxEventRequest -Method GET -Uri $uri
+            return Invoke-RobloxApiRequest -Method GET -Uri $uri
         } catch {
             if ($_.Exception.Message -notmatch "HTTP 404") {
                 throw
@@ -1281,11 +1407,15 @@ try {
     if ($candidates.Count -eq 0) {
         throw "No enabled event has a current or future schedule."
     }
+    $desiredExperienceName = Get-DesiredExperienceName $config $nowUtc
 
     Write-Host "Roblox Event Sync"
     Write-Host "Target: universe=$script:UniverseId | group=$groupId | place=$placeId"
     Write-Host "Selected $($candidates.Count) event window(s): current plus staged next window per eventKey"
     Write-Host "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY-RUN' })"
+    if ($null -ne $desiredExperienceName) {
+        Write-Host "Desired experience name: $desiredExperienceName"
+    }
 
     $payloads = @{}
     foreach ($candidate in $candidates) {
@@ -1344,20 +1474,20 @@ try {
                     $updatePayload[$property.Name] = $property.Value
                 }
             }
-            $managedEvent = Invoke-RobloxEventRequest `
+            $managedEvent = Invoke-RobloxApiRequest `
                 -Method PATCH `
                 -Uri "$ApiRoot/game-events/$existingId" `
                 -Body ([pscustomobject]$updatePayload)
         } else {
             Write-Host "Creating new $($candidate.eventKey) event."
-            $managedEvent = Invoke-RobloxEventRequest `
+            $managedEvent = Invoke-RobloxApiRequest `
                 -Method POST `
                 -Uri "$ApiRoot/universes/$script:UniverseId/game-events" `
                 -Body $payload
         }
 
         $managedEventId = Convert-ToInt64 (Get-PropertyValue $managedEvent "id") "returned event id"
-        $verifiedEvent = Invoke-RobloxEventRequest -Method GET -Uri "$ApiRoot/game-events/$managedEventId`?fields=*"
+        $verifiedEvent = Invoke-RobloxApiRequest -Method GET -Uri "$ApiRoot/game-events/$managedEventId`?fields=*"
         if (-not (Test-EventCoreFields -Event $verifiedEvent -Payload $payload)) {
             throw "Verification failed for event $managedEventId. State was not written for key $($candidate.eventKey)."
         }
@@ -1379,6 +1509,9 @@ try {
             -UniverseId $script:UniverseId `
             -PlaceId $placeId
         Write-Host "Sync succeeded: key=$($candidate.eventKey) | eventId=$managedEventId"
+    }
+    if ($null -ne $desiredExperienceName) {
+        Sync-ExperienceName -DesiredName $desiredExperienceName -UniverseId $script:UniverseId
     }
     Write-Host "State written: $stateFile"
 } catch {
