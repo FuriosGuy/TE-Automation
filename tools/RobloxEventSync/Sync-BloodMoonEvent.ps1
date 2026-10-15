@@ -809,7 +809,11 @@ function Get-DesiredExperienceName {
     }
 
     $baseName = Get-RequiredString $settings "baseName"
-    $nameTemplate = Get-RequiredString $settings "multiplierNameFormat"
+    $defaultNameTemplate = Get-RequiredString $settings "defaultNameFormat"
+    $halloweenNameTemplate = Get-RequiredString $settings "halloweenNameFormat"
+    $multiplierNameTemplate = Get-RequiredString $settings "multiplierNameFormat"
+    $halloweenMultiplierNameTemplate = Get-RequiredString $settings "halloweenMultiplierNameFormat"
+    $isHalloween = $NowUtc.Month -eq 10
     $activeMultipliers = [Collections.Generic.List[object]]::new()
     foreach ($event in @(Get-PropertyValue $Config "events")) {
         if ((Get-PropertyValue $event "enabled") -eq $false) {
@@ -840,10 +844,15 @@ function Get-DesiredExperienceName {
         throw "Multiple multiplier events are active; refusing ambiguous experience name."
     }
     if ($activeMultipliers.Count -eq 0) {
-        return $baseName
+        $nameTemplate = if ($isHalloween) { $halloweenNameTemplate } else { $defaultNameTemplate }
+        return $nameTemplate.Replace("{BASE_NAME}", $baseName)
     }
 
-    return $nameTemplate.Replace("{MULTIPLIER}", [string]$activeMultipliers[0].multiplier)
+    $nameTemplate = if ($isHalloween) { $halloweenMultiplierNameTemplate } else { $multiplierNameTemplate }
+    return $nameTemplate.Replace("{MULTIPLIER}", [string]$activeMultipliers[0].multiplier).Replace(
+        "{BASE_NAME}",
+        $baseName
+    )
 }
 
 function Sync-ExperienceName {

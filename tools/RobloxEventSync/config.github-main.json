@@ -10,7 +10,10 @@
   "experienceName": {
     "enabled": true,
     "baseName": "+1 Speed Kart Tsunami Escape",
-    "multiplierNameFormat": "[{MULTIPLIER}X] +1 Speed Kart Tsunami Escape"
+    "defaultNameFormat": "[UPD] {BASE_NAME}",
+    "halloweenNameFormat": "[🎃 UPD] {BASE_NAME}",
+    "multiplierNameFormat": "[{MULTIPLIER}X] {BASE_NAME}",
+    "halloweenMultiplierNameFormat": "[🎃 {MULTIPLIER}X] {BASE_NAME}"
   },
   "rotation": {
     "enabled": true,
